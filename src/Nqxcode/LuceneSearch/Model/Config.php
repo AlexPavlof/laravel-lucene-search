@@ -200,36 +200,30 @@ class Config
      */
     public function models($hits, array $options = [], &$totalCount = null)
     {
-        // Get models from hits.
-        $results = array_map(
-            function ($hit) {
-                return $this->model($hit);
-            },
-            $hits
-        );
+        $models = [];
+        $results = [];
 
-        // Skip empty or not searchable.
-        $results = array_filter(
-            $results,
-            function ($model) {
-                if (!is_null($model)) {
-                    if (method_exists($model, 'isSearchable')) {
-                        return $model->{'isSearchable'}();
-                    } else {
-                        return true;
-                    }
+        $totalCount = count($hits);
+
+        if (isset($options['limit']) && isset($options['offset'])) {
+            $hits = array_slice($hits, $options['offset'], $options['limit']);
+        }
+
+        array_map(function($hit) use (&$models) {
+            $models[$hit->class_uid][] = $hit->private_key;
+        }, $hits);
+
+        if(isset($options['limit']) && isset($options['offset'])) {
+            foreach ($models as $class_uid => $values) {
+                $repo = $this->createModelByClassUid($class_uid);
+                $res = $repo->with('page')->whereIn('id', $values)->get();
+                foreach($res as $k => $v) {
+                    array_push($results, $v);
                 }
-                return false;
             }
-        );
+        }
 
         $results = array_values($results);
-        $totalCount = count($results);
-
-        // Limit results.
-        if (isset($options['limit']) && isset($options['offset'])) {
-            $results = array_slice($results, $options['offset'], $options['limit']);
-        }
 
         return $results;
     }
